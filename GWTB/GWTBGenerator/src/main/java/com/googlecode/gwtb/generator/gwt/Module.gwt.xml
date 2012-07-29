@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8">
+<module rename-to="Module">
+    <inherits name="com.googlecode.gwtb.gwt.Module"/>
+    <generate-with class="com.googlecode.gwtb.generator.JAXBGenerator">
+        <when-type-assignable class="com.googlecode.gwtb.gwt.JAXBSerializable"/>
+    </generate-with>
+    <source path=""/>
+</module>

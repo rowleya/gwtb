@@ -1,4 +1,4 @@
-package com.googlecode.gwtb;
+package com.googlecode.gwtb.gwt;
 
 public interface JAXBSerializable {
 
