@@ -4,7 +4,7 @@ import com.google.gwt.json.client.JSONObject;
 
 public interface JSONSerializer<T> {
 
-    JSONObject toJSON(T object);
+    JSONObject toJSON(T object) throws SerializationException;
 
-    T fromJSON(JSONObject object);
+    T fromJSON(JSONObject object) throws SerializationException;
 }

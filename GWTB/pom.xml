@@ -7,11 +7,13 @@
     <modules>
         <module>GWTBInterface</module>
         <module>GWTBGenerator</module>
+        <module>GWTTest</module>
     </modules>
 
     <properties>
         <maven.compiler.plugin.version>2.5.1</maven.compiler.plugin.version>
         <gwt.version>2.4.0</gwt.version>
+        <gwt.maven.version>2.4.0</gwt.maven.version>
     </properties>
 
     <build>
