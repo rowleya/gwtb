@@ -1,0 +1,6 @@
+<module rename-to="GWTBTest">
+    <inherits name="com.google.gwt.user.User"/>
+    <inherits name="com.google.gwt.user.theme.standard.Standard"/>
+    <inherits name="com.googlecode.gwtb.generator.gwt.JAXBGenerator"/>
+    <entry-point class="com.googlecode.gwtb.test.client.Test"/>
+</module>
