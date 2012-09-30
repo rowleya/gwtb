@@ -1,5 +1,6 @@
 package com.googlecode.gwtb.test.client;
 
+import javax.xml.bind.annotation.XmlID;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlValue;
 
@@ -20,6 +21,7 @@ public class TestOtherObject implements JAXBSerializable {
     }
 
     @XmlValue
+    @XmlID
     public String getOtherObjectString() {
         return otherObjectString;
     }

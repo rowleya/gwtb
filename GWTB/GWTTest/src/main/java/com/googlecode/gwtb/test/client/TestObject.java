@@ -5,6 +5,7 @@ import java.util.List;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlIDREF;
 import javax.xml.bind.annotation.XmlRootElement;
 
 import com.googlecode.gwtb.gwt.JAXBSerializable;
@@ -29,6 +30,7 @@ public class TestObject implements JAXBSerializable {
 
     private char testChar = 'a';
 
+    @XmlIDREF
     private TestOtherObject testObject = new TestOtherObject("test");
 
     private String[] testArray = new String[]{"a", "b", "c"};

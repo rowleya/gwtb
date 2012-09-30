@@ -7,4 +7,6 @@ public interface JSONSerializer<T> {
     JSONObject toJSON(T object) throws SerializationException;
 
     T fromJSON(JSONObject object) throws SerializationException;
+
+    T fromCache(String id);
 }

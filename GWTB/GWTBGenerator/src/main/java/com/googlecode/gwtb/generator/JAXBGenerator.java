@@ -90,6 +90,8 @@ public class JAXBGenerator extends Generator {
             composer.addImport("java.util.ArrayList");
             composer.addImport("java.util.HashSet");
             composer.addImport("java.util.LinkedList");
+            composer.addImport("java.util.Map");
+            composer.addImport("java.util.HashMap");
             composer.addImport(jaxbSerializable.getQualifiedSourceName());
 
             PrintWriter printWriter = context.tryCreate(logger, packageName,
@@ -98,6 +100,7 @@ public class JAXBGenerator extends Generator {
                 SourceWriter writer = composer.createSourceWriter(context,
                         printWriter);
                 writeAccessors(writer, logger, type, items);
+                writeCache(writer, logger, type, items);
                 writeDeserializer(writer, logger, type, items);
                 writeSerializer(writer, logger, type, items);
                 writer.commit(logger);
@@ -113,6 +116,50 @@ public class JAXBGenerator extends Generator {
         }
     }
 
+    private SerializedItem writeCache(SourceWriter writer, TreeLogger logger,
+            JClassType type, Map<String, SerializedItem> items) {
+        SerializedItem idItem = null;
+        for (SerializedItem item : items.values()) {
+            if (item.isId()) {
+                idItem = item;
+                break;
+            }
+        }
+
+        if (idItem != null) {
+            writer.println("private Map<String, "
+                    + type.getQualifiedSourceName()
+                    + "> cache = new HashMap<String, "
+                    + type.getQualifiedSourceName() + ">();");
+        }
+        writer.println("private void toCache(" + type.getQualifiedSourceName()
+                + " object) {");
+        writer.indent();
+        if (idItem != null) {
+            writer.println("String id = getJS" + idItem.getName()
+                    + "(object);");
+            writer.println("cache.put(id, object);");
+        } else {
+            writer.println("// Does Nothing as no XmlId annotation");
+        }
+        writer.outdent();
+        writer.println("}");
+        writer.println();
+
+        writer.println("public " + type.getQualifiedSourceName()
+                + " fromCache(String id) {");
+        writer.indent();
+        if (idItem != null) {
+            writer.println("return cache.get(id);");
+        } else {
+            writer.println("return null;");
+        }
+        writer.outdent();
+        writer.println("}");
+        writer.println();
+        return idItem;
+    }
+
     private void writeAccessors(SourceWriter writer, TreeLogger logger,
             JClassType type, Map<String, SerializedItem> items) {
         writer.println("private native " + type.getQualifiedSourceName()
@@ -122,6 +169,7 @@ public class JAXBGenerator extends Generator {
                 + "::new()();");
         writer.outdent();
         writer.println("}-*/;");
+        writer.println();
         for (SerializedItem item : items.values()) {
             JType actualType = item.getActualType();
 
@@ -164,6 +212,7 @@ public class JAXBGenerator extends Generator {
             }
             writer.outdent();
             writer.println("}-*/;");
+            writer.println();
         }
     }
 
@@ -227,9 +276,33 @@ public class JAXBGenerator extends Generator {
 
             List<JClassType> types = item.getTypes();
             if (types.isEmpty()) {
+                if (item.isIdRef()) {
+                    writer.println("JSONString " + name + "Id = "
+                        + name + "Value.isString();");
+                    writer.println("if (" + name + "Id != null) {");
+                    writer.indent();
+                    JType classType = item.getActualType();
+                    writer.println("JSONSerializer<"
+                            + classType.getQualifiedSourceName() + "> " + name
+                            + "Serializer = GWT.create("
+                            + classType.getQualifiedSourceName() + ".class);");
+                    writer.println(classType.getQualifiedSourceName() + " "
+                            + name + "Object = "
+                            + name + "Serializer.fromCache(" + name
+                            + "Id.stringValue());");
+                    writer.println("setJS" + item.getName()
+                            + "(objectInstance, " + name + "Object);");
+                    writer.outdent();
+                    writer.println("} else {");
+                    writer.indent();
+                }
                 JType itemType = item.getActualType();
                 deserializeType(writer, logger, itemType, name + "Value",
                         "setJS" + item.getName() + "(objectInstance, ", ");");
+                if (item.isIdRef()) {
+                    writer.outdent();
+                    writer.println("}");
+                }
             } else {
                 // TODO: Process multiple possible types
             }
@@ -247,9 +320,11 @@ public class JAXBGenerator extends Generator {
                 writer.println("}");
             }
         }
+        writer.println("toCache(objectInstance);");
         writer.println("return objectInstance;");
         writer.outdent();
         writer.println("}");
+        writer.println();
     }
 
     private void deserializeType(SourceWriter writer, TreeLogger logger,
@@ -340,16 +415,21 @@ public class JAXBGenerator extends Generator {
             }
         } else if (itemType.isArray() != null) {
             JArrayType arrayType = (JArrayType) itemType;
+            JType componentType = arrayType.getComponentType();
+            String component = componentType.getQualifiedSourceName();
             writer.println("JSONArray " + name + "JSArray" + " = " + name
                     + ".isArray();");
             writer.println("if (" + name + "JSArray == null) {");
             writer.indent();
-            writer.println("throw new SerializationException(\"" + name
-                    + " in JSON is not an Array\", object);");
+            writer.println("// value may be single value for array");
+            writer.println(component + "[] " + name + "Array = new "
+                + component + "[1];");
+            deserializeType(writer, logger, componentType, name,
+                    name + "Array[0] = ", ";");
+            writer.println(beforeSet + name + "Array" + afterSet);
             writer.outdent();
-            writer.println("}");
-            JType componentType = arrayType.getComponentType();
-            String component = componentType.getQualifiedSourceName();
+            writer.println("} else {");
+            writer.indent();
             writer.println(component + "[] " + name + "Array" + " = new "
                     + component + "[" + name + "JSArray.size()];");
             writer.println("for (int " + name + "Count = 0; " + name
@@ -358,11 +438,13 @@ public class JAXBGenerator extends Generator {
             writer.indent();
             writer.println("JSONValue " + name + "ArrayItem = "
                     + name + "JSArray.get(" + name + "Count);");
-            deserializeType(writer, logger, arrayType.getComponentType(), name
-                    + "ArrayItem", name + "Array[" + name + "Count] = ", ";");
+            deserializeType(writer, logger, componentType, name + "ArrayItem",
+                    name + "Array[" + name + "Count] = ", ";");
             writer.outdent();
             writer.println("}");
             writer.println(beforeSet + name + "Array" + afterSet);
+            writer.outdent();
+            writer.println("}");
         } else if (itemType instanceof JClassType) {
             JClassType classType = (JClassType) itemType;
             if (classType.isAssignableTo(collectionType)) {
@@ -390,15 +472,6 @@ public class JAXBGenerator extends Generator {
                     typeParam = wildcardParam.getBaseType();
                 }
 
-                writer.println("JSONArray " + name + "JSArray" + " = " + name
-                        + ".isArray();");
-                writer.println("if (" + name + "JSArray == null) {");
-                writer.indent();
-                writer.println("throw new SerializationException(\"" + name
-                        + " in JSON is not an Array\", object);");
-                writer.outdent();
-                writer.println("}");
-
                 if (classType.isAssignableTo(listType)) {
                     writer.println("List<" + typeParam.getQualifiedSourceName()
                             + "> " + name + "Collection = new ArrayList<"
@@ -419,6 +492,16 @@ public class JAXBGenerator extends Generator {
                             + typeParam.getQualifiedSourceName() + ">();");
                 }
 
+                writer.println("JSONArray " + name + "JSArray" + " = " + name
+                        + ".isArray();");
+                writer.println("if (" + name + "JSArray == null) {");
+                writer.indent();
+                writer.println("// value might be single value");
+                deserializeType(writer, logger, typeParam, name,
+                        name + "Collection.add(", ");");
+                writer.outdent();
+                writer.println("} else {");
+                writer.indent();
                 writer.println("for (int " + name + "Count = 0; " + name
                         + "Count < " + name + "JSArray.size(); " + name
                         + "Count++) {");
@@ -429,12 +512,15 @@ public class JAXBGenerator extends Generator {
                         + "CollectionItem", name + "Collection.add(", ");");
                 writer.outdent();
                 writer.println("}");
+                writer.outdent();
+                writer.println("}");
                 writer.println(beforeSet + name + "Collection" + afterSet);
             } else if (classType.isAssignableTo(jaxbSerializable)) {
                 writer.println("JSONObject " + name + "JSObject = " + name
                         + ".isObject();");
                 writer.println("if (" + name + "JSObject == null) {");
                 writer.indent();
+
                 writer.println("throw new SerializationException(\"" + name
                         + " in JSON is not an Object\", object);");
                 writer.outdent();
@@ -462,6 +548,7 @@ public class JAXBGenerator extends Generator {
         writer.println("public JSONObject toJSON(" + type.getName()
                 + " objectInstance)" + " throws SerializationException {");
         writer.indent();
+        writer.println("toCache(objectInstance);");
         writer.println("JSONObject object = new JSONObject();");
 
         for (SerializedItem item : items.values()) {
@@ -548,6 +635,7 @@ public class JAXBGenerator extends Generator {
         writer.println("return object;");
         writer.outdent();
         writer.println("}");
+        writer.println();
     }
 
     private void serializeType(SourceWriter writer, TreeLogger logger,

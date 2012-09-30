@@ -52,6 +52,8 @@ public class SerializedItem {
 
     private XmlIDREF xmlIdRef = null;
 
+    private XmlID xmlId = null;
+
     private XmlJavaTypeAdapter xmlJavaTypeAdapter = null;
 
     private XmlTransient xmlTransient = null;
@@ -195,8 +197,17 @@ public class SerializedItem {
                         + containerType.getQualifiedSourceName());
                 throw new UnableToCompleteException();
             }
+            JClassType refClassType = (JClassType) refType;
+            if (!refClassType.isAssignableTo(typeOracle.findType(
+                    "com.googlecode.gwtb.gwt.JAXBSerializable"))) {
+                logger.log(Type.ERROR, 	"Referenced type for XmlIDREF "
+                        + refType.getQualifiedSourceName()
+                        + " must be a JAXBSerializable object in "
+                        + containerType.getQualifiedSourceName());
+                throw new UnableToCompleteException();
+            }
 
-            objectIdItem = getXmlId((JClassType) refType, logger, typeOracle);
+            objectIdItem = getXmlId(refClassType, logger, typeOracle);
             if (objectIdItem == null) {
                 logger.log(Type.ERROR, "Missing XmlID in class "
                     + refType.getQualifiedSourceName()
@@ -204,12 +215,7 @@ public class SerializedItem {
                     + containerType.getQualifiedSourceName());
             }
 
-            JType xmlIdType = null;
-            if (objectIdItem instanceof JField) {
-                xmlIdType = ((JField) objectIdItem).getType();
-            } else if (objectIdItem instanceof JMethod) {
-                xmlIdType = ((JMethod) objectIdItem).getReturnType();
-            }
+            JType xmlIdType = objectIdItem.getActualType();
             if (!xmlIdType.getQualifiedSourceName().equals(
                     "java.lang.String")) {
                 logger.log(Type.ERROR, "XmlID must be a java.lang.String "
@@ -336,6 +342,7 @@ public class SerializedItem {
         xmlElements = item.getAnnotation(XmlElements.class);
         xmlElementRefs = item.getAnnotation(XmlElementRefs.class);
         xmlIdRef = item.getAnnotation(XmlIDREF.class);
+        xmlId = item.getAnnotation(XmlID.class);
         xmlElementWrapper = item.getAnnotation(XmlElementWrapper.class);
         xmlJavaTypeAdapter = item.getAnnotation(XmlJavaTypeAdapter.class);
         xmlTransient = item.getAnnotation(XmlTransient.class);
@@ -375,8 +382,17 @@ public class SerializedItem {
             if (annotated) {
                 logger.log(Type.ERROR,
                         "An item cannot be both transient and not transient!");
+                throw new UnableToCompleteException();
             }
             trans = true;
+        }
+
+        if (xmlId != null) {
+            if (!actualType.getQualifiedSourceName().equals(
+                    "java.lang.String")) {
+                logger.log(Type.ERROR, "XmlId must be a string!");
+                throw new UnableToCompleteException();
+            }
         }
     }
 
@@ -428,6 +444,15 @@ public class SerializedItem {
                 if (!annotated) {
                     trans = true;
                     this.xmlTransient = item.xmlTransient;
+                }
+            }
+
+            if ((xmlId == null) && (item.xmlId != null)) {
+                this.xmlId = item.xmlId;
+                if (!actualType.getQualifiedSourceName().equals(
+                        "java.lang.String")) {
+                    logger.log(Type.ERROR, "XmlId must be a string!");
+                    throw new UnableToCompleteException();
                 }
             }
         }
@@ -554,5 +579,17 @@ public class SerializedItem {
 
     public JField getField() {
         return field;
+    }
+
+    public boolean isId() {
+        return xmlId != null;
+    }
+
+    public boolean isIdRef() {
+        return objectIdItem != null;
+    }
+
+    public SerializedItem getObjectIdItem() {
+        return objectIdItem;
     }
 }
